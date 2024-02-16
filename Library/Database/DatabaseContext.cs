@@ -36,6 +36,7 @@ namespace Library.Database
                     // Add more books for John here
                 };
                 Books.AddRange(johnsBooks);
+                authors[0].Books = johnsBooks;
         
                 // Create books for the second author
                 var janesBooks = new[]
@@ -45,6 +46,7 @@ namespace Library.Database
                     // Add more books for Jane here
                 };
                 Books.AddRange(janesBooks);
+                authors[1].Books = janesBooks;
         
                 SaveChanges();
             }

@@ -1,6 +1,7 @@
 
 using System.Text.Json.Serialization;
 using Library.Database;
+using Library.Service;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,7 +18,8 @@ builder.Services.AddDbContext<DatabaseContext>(options =>
 
 builder.Services.AddControllers();
 
-
+builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddScoped<IBookService, BookService>();
 
 
 var app = builder.Build();

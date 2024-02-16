@@ -1,8 +1,8 @@
-using Library.Database;
 using Library.DTOs;
 using Library.Models;
+using Library.Service;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,122 +13,135 @@ namespace Library.Controllers
     [ApiController]
     public class BookController : ControllerBase
     {
-        private readonly DatabaseContext _context;
+        private readonly IBookService _bookService;
 
-        public BookController(DatabaseContext context)
+        public BookController(IBookService bookService)
         {
-            _context = context;
+            _bookService = bookService ?? throw new ArgumentNullException(nameof(bookService));
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<BookDTO>>> GetBooks()
         {
-            var books = await _context.Books
-                .Include(book => book.Author)
-                .ToListAsync();
-
-            var bookDTOs = books.Select(book => new BookDTO
-            {
-                BookId = book.BookId,
-                Title = book.Title,
-                Year = book.Year,
-                Author = new AuthorDTO
-                {
-                    AuthorId = book.Author.AuthorId,
-                    FirstName = book.Author.FirstName,
-                    LastName = book.Author.LastName,
-                    DateOfBirth = book.Author.DateOfBirth,
-                    Title = book.Author.Title
-                }
-            }).ToList();
-
-            return bookDTOs;
+            var books = await _bookService.GetBooksAsync();
+            var bookDTOs = MapToBookDTOs(books);
+            return Ok(bookDTOs);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<BookDTO>> GetBook(int id)
         {
-            var book = await _context.Books.FindAsync(id);
-
+            var book = await _bookService.GetBookAsync(id);
             if (book == null)
             {
                 return NotFound();
             }
-
-            var bookDTO = new BookDTO
-            {
-                BookId = book.BookId,
-                Title = book.Title,
-                Year = book.Year,
-                Author = new AuthorDTO
-                {
-                    AuthorId = book.Author.AuthorId,
-                    FirstName = book.Author.FirstName,
-                    LastName = book.Author.LastName,
-                    DateOfBirth = book.Author.DateOfBirth,
-                    Title = book.Author.Title
-                }
-            };
-
-            return bookDTO;
+            var bookDTO = MapToBookDTO(book);
+            return Ok(bookDTO);
         }
 
         [HttpPost]
-        public async Task<ActionResult<Book>> PostBook(Book book)
+        public async Task<ActionResult<BookDTO>> PostBook(BookDTO bookDTO)
         {
-            _context.Books.Add(book);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetBook", new { id = book.BookId }, book);
+            var book = MapToBook(bookDTO);
+            var addedBook = await _bookService.AddBookAsync(book);
+            var addedBookDTO = MapToBookDTO(addedBook);
+            return CreatedAtAction(nameof(GetBook), new { id = addedBookDTO.BookId }, addedBookDTO);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutBook(int id, Book book)
+        public async Task<IActionResult> PutBook(int id, BookDTO bookDTO)
         {
-            if (id != book.BookId)
+            if (id != bookDTO.BookId)
             {
                 return BadRequest();
             }
-
-            _context.Entry(book).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!BookExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
+            var book = MapToBook(bookDTO);
+            await _bookService.UpdateBookAsync(book);
             return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteBook(int id)
         {
-            var book = await _context.Books.FindAsync(id);
-            if (book == null)
+            var deleted = await _bookService.DeleteBookAsync(id);
+            if (!deleted)
             {
                 return NotFound();
             }
-
-            _context.Books.Remove(book);
-            await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
-        private bool BookExists(int id)
+        private BookDTO MapToBookDTO(Book book)
         {
-            return _context.Books.Any(e => e.BookId == id);
+            if (book == null)
+            {
+                return null;
+            }
+
+            return new BookDTO
+            {
+                BookId = book.BookId,
+                Title = book.Title,
+                Year = book.Year,
+                Author = MapToAuthorDTO(book.Author)
+            };
         }
+
+        private List<BookDTO> MapToBookDTOs(IEnumerable<Book> books)
+        {
+            if (books == null)
+            {
+                return new List<BookDTO>();
+            }
+
+            return books.Select(book => MapToBookDTO(book)).ToList();
+        }
+
+        private AuthorDTO MapToAuthorDTO(Author author)
+        {
+            if (author == null)
+            {
+                return null;
+            }
+
+            return new AuthorDTO
+            {
+                AuthorId = author.AuthorId,
+                FirstName = author.FirstName,
+                LastName = author.LastName,
+                DateOfBirth = author.DateOfBirth,
+                Title = author.Title,
+            };
+        }
+
+        private Book MapToBook(BookDTO bookDTO)
+        {
+            if (bookDTO == null)
+            {
+                return null;
+            }
+
+            // Create the Author object
+            Author author = new Author
+            {
+                AuthorId = bookDTO.Author.AuthorId,
+                FirstName = bookDTO.Author.FirstName,
+                LastName = bookDTO.Author.LastName,
+                DateOfBirth = bookDTO.Author.DateOfBirth,
+                Title = bookDTO.Author.Title
+            };
+
+            return new Book
+            {
+                BookId = bookDTO.BookId,
+                Title = bookDTO.Title,
+                Year = bookDTO.Year,
+                Author = author
+            };
+        }
+
+
+
     }
 }
